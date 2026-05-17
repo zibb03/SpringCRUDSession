@@ -10,6 +10,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+// 6주차
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.likelion.session.dto.BoardPageResponse;
+
+import com.likelion.session.repository.DeleteLogRepository;
+import com.likelion.session.domain.DeleteLog;
+
+import com.likelion.session.dto.DeleteLogResponse;
+
 import java.util.List;
 
 @Slf4j // 로그를 남기기 위한 Logger 객체를 자동으로 생성해줌 (log.info() 등 사용 가능)
@@ -112,11 +124,130 @@ public class BoardService {
         게시글 삭제
         - id로 게시글을 찾고
         - 있으면 삭제
-     */
+
     public void delete(Long id) {
         Board board = boardRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
 
         boardRepository.delete(board);
+    }
+     */
+
+    // BoardService에 DeleteLogRepository 의존성 추가
+    private final DeleteLogRepository deleteLogRepository;
+
+    // 기존 delete() 메서드 수정
+    public void delete(Long id) {
+        Board board = boardRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
+
+        // 삭제 이력 저장 (Service에서 두 Repository를 조합!)
+        DeleteLog log = new DeleteLog(board.getId(), board.getTitle(), board.getWriter());
+        deleteLogRepository.save(log);
+
+        // 게시글 삭제
+        boardRepository.delete(board);
+    }
+
+    // BoardService.java 에 아래 메서드들 추가
+
+    /*
+        제목으로 검색
+        - keyword가 포함된 게시글 목록 반환
+     */
+    @Transactional(readOnly = true)
+    public List<BoardResponse> searchByTitle(String keyword) {
+        return boardRepository.findByTitleContaining(keyword)
+                .stream()
+                .map(board -> BoardResponse.builder()
+                        .id(board.getId())
+                        .title(board.getTitle())
+                        .content(board.getContent())
+                        .writer(board.getWriter())
+                        .createdAt(board.getCreatedAt())
+                        .updatedAt(board.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
+    /*
+        작성자로 검색
+     */
+    @Transactional(readOnly = true)
+    public List<BoardResponse> searchByWriter(String writer) {
+        return boardRepository.findByWriter(writer)
+                .stream()
+                .map(board -> BoardResponse.builder()
+                        .id(board.getId())
+                        .title(board.getTitle())
+                        .content(board.getContent())
+                        .writer(board.getWriter())
+                        .createdAt(board.getCreatedAt())
+                        .updatedAt(board.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
+    /*
+        통합 검색 (제목 + 내용)
+     */
+    @Transactional(readOnly = true)
+    public List<BoardResponse> search(String keyword) {
+        return boardRepository.searchByKeyword(keyword)
+                .stream()
+                .map(board -> BoardResponse.builder()
+                        .id(board.getId())
+                        .title(board.getTitle())
+                        .content(board.getContent())
+                        .writer(board.getWriter())
+                        .createdAt(board.getCreatedAt())
+                        .updatedAt(board.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
+    /*
+        페이지네이션 적용 전체 조회
+        - page: 몇 번째 페이지 (0부터 시작)
+        - size: 페이지당 몇 개
+     */
+    @Transactional(readOnly = true)
+    public BoardPageResponse findAllWithPage(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Board> boardPage = boardRepository.findAll(pageable);
+
+        List<BoardResponse> content = boardPage.getContent()
+                .stream()
+                .map(board -> BoardResponse.builder()
+                        .id(board.getId())
+                        .title(board.getTitle())
+                        .content(board.getContent())
+                        .writer(board.getWriter())
+                        .createdAt(board.getCreatedAt())
+                        .updatedAt(board.getUpdatedAt())
+                        .build())
+                .toList();
+
+        return BoardPageResponse.builder()
+                .content(content)
+                .totalPages(boardPage.getTotalPages())
+                .totalElements(boardPage.getTotalElements())
+                .currentPage(boardPage.getNumber())
+                .size(boardPage.getSize())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeleteLogResponse> findAllDeleteLogs() {
+        return deleteLogRepository.findAll()
+                .stream()
+                .map(log -> DeleteLogResponse.builder()
+                        .id(log.getId())
+                        .boardId(log.getBoardId())
+                        .boardTitle(log.getBoardTitle())
+                        .writer(log.getWriter())
+                        .deletedAt(log.getDeletedAt())
+                        .build())
+                .toList();
     }
 }
