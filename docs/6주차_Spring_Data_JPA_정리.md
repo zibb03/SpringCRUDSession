@@ -256,6 +256,3 @@ DB의 `delete_logs` 테이블에도 삭제 이력이 실제로 INSERT 된 것을
 - 조회 메서드에 `@Transactional(readOnly = true)`를 빠짐없이 붙이는 습관을 들여야겠다고 생각했다.
 
 ---
-
-> **테스트 환경**: Spring Boot · MySQL 8.0 (`session` DB) · Swagger UI (`http://localhost:8082/swagger-ui.html`)
-> **관련 코드**: `BoardController` / `BoardService` / `BoardRepository` / `DeleteLog` / `DeleteLogRepository`
